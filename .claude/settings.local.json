@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:perugulokeswar.medium.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:csanjay.medium.com)",
+      "WebFetch(domain:arxiv.org)",
+      "Bash(pip show:*)",
+      "Bash(pip install:*)",
+      "Bash(python:*)",
+      "Bash(kaggle competitions:*)",
+      "Bash(kaggle:*)",
+      "Bash(KAGGLE_TOKEN=KGAT_ab8d35999226cf3a5e84998300267827 python:*)",
+      "Bash(cd:*)",
+      "Bash(cd \"C:/Users/imao3/Documents/GitHub/kaggle/competitions/recruit-restaurant-visitor-forecasting/notebooks\" && jupyter nbconvert --to notebook --execute 04_submission.ipynb --output 04_submission_executed.ipynb --ExecutePreprocessor.timeout=600 2>&1)",
+      "Bash(tail:*)",
+      "Bash(ls:*)",
+      "Bash(cd \"C:/Users/imao3/Documents/GitHub/kaggle/competitions/recruit-restaurant-visitor-forecasting\" && jupyter nbconvert --to notebook --execute notebooks/02_feature_engineering.ipynb --output 02_feature_engineering_out.ipynb --ExecutePreprocessor.timeout=600 2>&1)",
+      "Bash(where python:*)",
+      "Bash(pyenv install:*)",
+      "Bash(winget:*)",
+      "Bash(\"/c/Users/imao3/AppData/Local/Programs/Python/Python314-arm64/python.exe\":*)",
+      "Bash(echo:*)",
+      "Bash(pyenv versions:*)",
+      "Bash(pyenv global:*)",
+      "Bash(powershell:*)",
+      "Bash(pip:*)",
+      "Bash(hash:*)"
+    ]
+  }
+}

@@ -1,0 +1,33 @@
+# Data processing
+numpy
+pandas
+polars
+
+# Visualization
+matplotlib
+seaborn
+plotly
+
+# Machine Learning
+scikit-learn
+lightgbm
+xgboost
+catboost
+
+# Deep Learning (optional)
+# torch
+# transformers
+
+# Jupyter
+jupyter
+jupyterlab
+ipywidgets
+
+# Utilities
+tqdm
+python-dotenv
+kaggle
+
+# Experiment tracking (optional)
+# wandb
+# mlflow

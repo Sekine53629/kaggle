@@ -1,0 +1,56 @@
+# Data files
+data/
+input/
+output/
+*.csv
+*.zip
+*.parquet
+*.feather
+*.pkl
+*.h5
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+nul
+
+# Kaggle API
+kaggle.json
+
+# API keys / secrets
+.md
+
+# Model files
+*.model
+*.joblib
+*.onnx
+models/*.pth
+models/*.pt
+
+# Logs
+*.log
+wandb/
+mlruns/
