@@ -54,3 +54,4 @@ models/*.pt
 *.log
 wandb/
 mlruns/
+catboost_info/
