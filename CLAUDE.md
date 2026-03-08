@@ -46,17 +46,19 @@ User: "yes"
 
 ```
 kaggle/
-├── CLAUDE.md              # This file
-├── requirements.txt       # Shared dependencies
+├── CLAUDE.md                        # This file (project rules)
+├── presentation_materials_guide.md  # Notebook creation order & verification gates
+├── methodology.md                   # EDA/modeling methodology & verification know-how
+├── requirements.txt                 # Shared dependencies
 ├── .gitignore
-├── src/                   # Shared utilities
+├── src/                             # Shared utilities
 │   └── utils/
 │       └── __init__.py
-├── templates/             # Template notebooks (copy to new competition)
+├── templates/                       # Template notebooks (copy to new competition)
 │   ├── template_eda.ipynb
 │   └── template_modeling.ipynb
-└── competitions/          # Competition sub-projects (ISOLATED)
-    ├── _template/         # Template for new competitions
+└── competitions/                    # Competition sub-projects (ISOLATED)
+    ├── _template/                   # Template for new competitions
     ├── comp_name_1/
     ├── comp_name_2/
     └── ...
@@ -210,6 +212,99 @@ from src.utils import seed_everything, reduce_mem_usage
 - Model files (*.pkl, *.joblib, *.h5, *.pth)
 - Outputs and submissions
 - Kaggle API credentials
+
+## Document Reference Order
+
+When starting or resuming work on a competition, Claude MUST read these documents in order:
+
+| Priority | Document | Purpose |
+|----------|----------|---------|
+| 1 | `CLAUDE.md` (this file) | Project structure, isolation rules, naming conventions |
+| 2 | `presentation_materials_guide.md` | Notebook creation order, verification gates, intermediate data rules |
+| 3 | `methodology.md` | EDA/modeling phases, verification know-how, reusable code patterns |
+| 4 | `competitions/{comp_name}/README.md` | Competition-specific info, approach, results |
+| 5 | `presentation_materials_guide.md` status table | Current progress for the competition |
+
+### When to Re-read
+
+- **Starting a new session**: Always read #1 and #2
+- **Creating a new notebook**: Read #2 (verification gates) and #3 (methodology phases)
+- **Resuming after interruption**: Read #2 status table first, then #5
+
+---
+
+## Compliance Rules
+
+### Rule C1: Verification Gates Are Mandatory
+
+Every notebook step in `presentation_materials_guide.md` has a verification gate table. Claude MUST:
+- Run through each check in the gate before marking a step as complete
+- NOT proceed to the next step if any gate check fails
+- Document which checks passed/failed when reporting status to the user
+
+### Rule C2: confirmed_settings Propagation
+
+The `02_feature_design.pkl` file contains a `confirmed_settings` dict that defines:
+- `best_train_start`: Training data start date
+- `best_nan_strategy`: NaN handling approach
+- `best_rolling_config`: Rolling feature calculation method
+
+**All downstream notebooks (03-x, 04) MUST load and apply these settings.** Never hardcode these values.
+
+### Rule C3: Intermediate Data Chain Integrity
+
+```
+01_eda_results.pkl → 02_feature_design.pkl → 03-x_results.pkl → 04_comparison_results.pkl
+```
+
+- Each file depends on all upstream files
+- If an upstream file is regenerated, ALL downstream files must be regenerated
+- Before creating any notebook, verify its upstream pickle files exist
+
+### Rule C4: Notebook Path References
+
+Notebooks in `notebooks/説明用資料/` are 2 levels deep from the competition root:
+
+```python
+# CORRECT (from 説明用資料/ directory)
+INPUT_DIR = Path('../../input')
+OUTPUT_DIR = Path('../../output')
+INTERMEDIATE_DIR = Path('./intermediate')
+
+# WRONG (only 1 level)
+INPUT_DIR = Path('../input')  # This will fail!
+```
+
+### Rule C5: Font Configuration (Windows)
+
+Use `MS Gothic` for Japanese text in matplotlib. `IPAGothic` is not available on Windows.
+
+```python
+plt.rcParams['font.family'] = 'MS Gothic'
+```
+
+### Rule C6: Python Version Awareness
+
+The project uses Python 3.13. Pickle files saved with Python 3.13 cannot be loaded by older Python versions (e.g., 3.8). Always use the same Python version for all notebook execution.
+
+---
+
+## Verification Know-How Reference
+
+Detailed verification patterns are documented in `methodology.md` (Section: Verification Know-How). Key patterns:
+
+| ID | Pattern | When to Use |
+|----|---------|-------------|
+| V1 | Feature Leakage Detection | After creating features (Step 2) |
+| V2 | Temporal Leakage in Rolling | After creating rolling features (Step 2) |
+| V3 | CV-LB Alignment Check | After each submission |
+| V4 | Prediction Sanity Check | After each model training (Step 3) |
+| V5 | NaN Strategy Validation | During feature design (Step 2, Section 11) |
+| V6 | Rolling Window Config Test | During feature design (Step 2, Section 12) |
+| V7 | Ensemble Weight Stability | During comparison (Step 4) |
+| V8 | Business vs Calendar Rolling | During feature design (Step 2, Section 12) |
+
+---
 
 ## Development Commands
 
