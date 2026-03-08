@@ -103,6 +103,7 @@ windows = [7, 14, 21, 35, 63, 140, 280, 350, 420]
 2. `01_eda_20260308.ipynb` - **EDA v2 (2026-03-08)**: Deep analysis with missing data, store lifecycle, STL decomposition, holiday raw-data analysis, validation strategy
 3. `02_feature_engineering.ipynb` - Feature Engineering Study
 4. `03_model_comparison.ipynb` - RF vs LightGBM vs XGBoost
+5. `06_model_design_20260308.ipynb` - **Model Design (2026-03-08)**: EDA-driven model selection (LightGBM/XGBoost/CatBoost), Optuna tuning, weighted ensemble
 
 ## Key Learnings
 
@@ -208,6 +209,31 @@ cell-20: [MODIFIED] best_params で全データ再学習（提出用）
 7. バリデーション戦略設計（5-fold TimeSeriesSplit、GW含む39日窓）
 
 **手法ドキュメント**: `templates/methodology.md` を新規作成（英語、再利用可能な手順書）
+
+---
+
+### 2026-03-08: モデル設計 — EDA駆動のモデル選定
+
+**対象ノートブック**: `06_model_design_20260308.ipynb`
+
+**設計プロセス**:
+1. EDA発見事項から問題特性を整理 → GBDTファミリーが最適と判断
+2. ベースライン（store×DOW中央値）: Mean RMSLE = 0.5908
+3. LightGBM/XGBoost/CatBoost 3モデル比較（同一特徴量・同一CV）
+4. Optuna 30 trials でLightGBMをチューニング
+5. CVスコア逆数による重み付きアンサンブル
+
+**結果**:
+
+| Model | Mean RMSLE | vs Baseline |
+|-------|-----------|-------------|
+| Baseline | 0.5908 | --- |
+| LightGBM | 0.5724 | +0.0185 |
+| LightGBM (tuned) | 0.5698 | +0.0210 |
+| XGBoost | 0.5848 | +0.0060 |
+| CatBoost | 0.5913 | -0.0004 |
+
+**Ensemble weights**: LightGBM 0.339 / XGBoost 0.332 / CatBoost 0.329
 
 ---
 
