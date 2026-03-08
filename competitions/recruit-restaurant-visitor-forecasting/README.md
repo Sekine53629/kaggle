@@ -99,9 +99,10 @@ windows = [7, 14, 21, 35, 63, 140, 280, 350, 420]
 
 ## Notebooks
 
-1. `01_eda.ipynb` - Exploratory Data Analysis
-2. `02_feature_engineering.ipynb` - Feature Engineering Study
-3. `03_model_comparison.ipynb` - RF vs LightGBM vs XGBoost
+1. `01_eda.ipynb` - Exploratory Data Analysis (initial)
+2. `01_eda_20260308.ipynb` - **EDA v2 (2026-03-08)**: Deep analysis with missing data, store lifecycle, STL decomposition, holiday raw-data analysis, validation strategy
+3. `02_feature_engineering.ipynb` - Feature Engineering Study
+4. `03_model_comparison.ipynb` - RF vs LightGBM vs XGBoost
 
 ## Key Learnings
 
@@ -190,6 +191,23 @@ cell-20: [MODIFIED] best_params で全データ再学習（提出用）
 ```
 
 **結果**: 実行後に best_params と RMSLE を記録する（TODO）
+
+---
+
+### 2026-03-08: EDA v2 — 深層分析ノートブック作成
+
+**対象ノートブック**: `01_eda_20260308.ipynb`
+
+**追加分析内容**:
+1. 営業日の欠損分析 + 店舗ライフサイクル（開店/閉店/定休日の切り分け）
+2. データ開始日・期間のばらつき分析
+3. 自己相関分析（ACF/PACF）+ STLトレンド分解
+4. 祝日・特殊期間の生データ分析（正月/GW/お盆/年末、店舗別挙動、前日・翌日効果）
+5. ジャンル別祝日反応の差異
+6. Train/Test分布シフト確認
+7. バリデーション戦略設計（5-fold TimeSeriesSplit、GW含む39日窓）
+
+**手法ドキュメント**: `templates/methodology.md` を新規作成（英語、再利用可能な手順書）
 
 ---
 
