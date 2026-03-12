@@ -27,7 +27,22 @@
       "Bash(pyenv global:*)",
       "Bash(powershell:*)",
       "Bash(pip:*)",
-      "Bash(hash:*)"
+      "Bash(hash:*)",
+      "Bash(python3:*)",
+      "Bash(jupyter kernelspec:*)",
+      "Bash(\"C:/Users/imao3/AppData/Local/Programs/Python/Python313/python.exe\":*)",
+      "Bash(PYTHONIOENCODING=utf-8 python3:*)",
+      "Bash(PYTHONIOENCODING=utf-8 \"C:/Users/imao3/AppData/Local/Programs/Python/Python313/python.exe\":*)",
+      "Bash(\"C:/Users/imao3/AppData/Local/Programs/Python/Python313/Scripts/kaggle.exe\":*)",
+      "Bash(\"C:/Users/imao3/AppData/Local/Programs/Python/Python313/Scripts/kaggle.exe\" competitions:*)",
+      "Bash(\"C:/Users/imao3/AppData/Local/Programs/Python/Python313/Scripts/kaggle.exe\" config:*)",
+      "Bash(KAGGLE_TOKEN=\"KGAT_ecb15932254e1e1d834e2b6dd3de278d\" \"C:/Users/imao3/AppData/Local/Programs/Python/Python313/Scripts/kaggle.exe\" competitions:*)",
+      "Bash(KAGGLE_KEY=\"KGAT_ecb15932254e1e1d834e2b6dd3de278d\" KAGGLE_USERNAME=\"yoshihirosekine\" \"C:/Users/imao3/AppData/Local/Programs/Python/Python313/Scripts/kaggle.exe\" competitions:*)",
+      "Bash(py:*)",
+      "Bash(KAGGLE_USERNAME=yoshihirosekine KAGGLE_KEY=KGAT_ecb15932254e1e1d834e2b6dd3de278d kaggle competitions:*)",
+      "Bash(KAGGLE_CONFIG_DIR=\"$HOME/.kaggle\" kaggle competitions:*)",
+      "Bash(pyenv shell:*)",
+      "Bash(cd \"C:\\\\Users\\\\imao3\\\\Documents\\\\GitHub\\\\kaggle\" && python -c \"\nimport json\nnb = json.load\\(open\\('competitions/recruit-restaurant-visitor-forecasting/notebooks/説明用資料/03-3_RandomForest_databricks.ipynb', encoding='utf-8'\\)\\)\nprint\\(f'Total cells: {len\\(nb[\\\\\"cells\\\\\"]\\)}'\\)\nfor i, cell in enumerate\\(nb['cells']\\):\n    ct = cell['cell_type']\n    src = ''.join\\(cell['source']\\)\n    preview = src[:80].replace\\('\\\\n', ' '\\)\n    print\\(f'  [{i:2d}] {ct:8s} | {preview}...'\\)\n\")"
     ]
   }
 }

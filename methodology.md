@@ -7,6 +7,8 @@
 |---------|------------|--------|--------------------------------|
 | v1.0    | 2026-03-08 | —      | Initial version (Recruit comp) |
 | v2.0    | 2026-03-08 | —      | Promoted to root; added verification gates and practical know-how |
+| v3.0    | 2026-03-09 | —      | Added tuning decision framework, V9/V10 patterns, Lessons 5-10 |
+| v4.0    | 2026-03-11 | —      | Added V11 overfitting diagnosis, RF NaN strategy (Lesson 16-18), median+flag imputation |
 
 ---
 
@@ -296,7 +298,40 @@ baseline_rmsle = rmsle(valid_df['visitors'], baseline_pred)
   - Prophet / NeuralProphet
   - ARIMA / SARIMAX (per-entity)
 
-### Step 3: Hyperparameter Tuning
+### Step 3: Hyperparameter Tuning — 判断フレームワーク
+
+#### まずチューニングすべきかを判断する
+
+チューニング前に以下を確認し、**費用対効果が低い場合はスキップする**。
+
+| チェック項目 | 判断基準 | アクション |
+|-------------|---------|-----------|
+| デフォルト vs ベースライン改善幅 | ML改善幅 < 0.03 | 特徴量追加を優先 |
+| 特徴量重要度の偏り | Top2特徴量 > 80% | チューニングよりも新特徴量追加 |
+| CV std vs 期待改善幅 | 期待改善 < CV std | チューニング効果が測定不能 |
+| モデル間スコア差 | 全モデルが同程度 | アンサンブルを優先 |
+
+#### Recruit Competition での実例（チューニングを見送った判断根拠）
+
+```
+デフォルト CV平均:  0.51352 (±0.01658)
+Optuna 50trials CV: 0.51310
+改善幅:             0.00041（CV stdの2.5%）
+シングル分割:       0.51615 → 0.51664（悪化）
+```
+
+**判断**: 改善幅 0.00041 は CV std 0.0166 の **2.5%** に過ぎず、統計的に有意でない。
+さらにシングル分割で悪化しており、CV過適合の兆候。
+→ **デフォルトパラメータで全データ再学習が最善**。
+
+この計算コスト（50 trials × 5 folds = 250回学習 ≈ 40分）を特徴量開発に回すべきだった。
+
+#### チューニングが有効な条件
+- デフォルトとベースラインの改善幅が大きい（>0.05）→ 探索空間に余地がある
+- 特徴量重要度が分散している → パラメータで精度が動く余地がある
+- CV stdが小さい（<0.005）→ 微小な改善でも検出可能
+
+#### チューニングを実施する場合
 - Use Optuna or similar for Bayesian optimization.
 - Tune on CV score, not on a single fold.
 - Key parameters to tune:
@@ -304,6 +339,18 @@ baseline_rmsle = rmsle(valid_df['visitors'], baseline_pred)
   - max_depth / num_leaves
   - Regularization (lambda, alpha, min_child_samples)
   - Subsampling (feature and row)
+
+#### Grid Search vs Optuna の選択
+
+| 手法 | 長所 | 短所 | 推奨場面 |
+|------|------|------|---------|
+| Grid Search | 網羅的、再現性が高い | パラメータ数増加で指数的に爆発 | パラメータ2-3個、値域が狭い |
+| Optuna (TPE) | 効率的、多パラメータ対応 | 探索にランダム性、再現にseed固定要 | パラメータ4個以上 |
+| なし（デフォルト） | コスト0 | 最適でない可能性 | **改善余地が小さい場合** |
+
+**実務的判断**: 7パラメータのGrid Search（各3値）= 2,187通り × 5 folds = 10,935回学習。
+Optuna 50 trials × 5 folds = 250回で同等以上の結果が得られる。
+→ 多パラメータではOptuna一択。しかし**そもそもチューニングが必要か**を先に判断する。
 
 ### Step 4: Ensemble
 - Blend top 2-3 models (weighted average or stacking).
@@ -459,6 +506,139 @@ for store_id in sample_stores:
     print(f"Store {store_id}: avg diff = {diff:.2f}")
 ```
 
+### V9: Test Prediction Pipeline Validation
+
+テスト予測パイプラインには学習時に存在しない3種のバグが潜む。提出前に必ず検証する。
+
+```python
+# === V9a: NaN汚染チェック ===
+# テスト特徴量のNaN率を確認。学習時と大幅に異なればパイプラインにバグがある
+X_test = test_df[all_features]
+test_nan_rate = X_test.isna().mean().mean()
+train_nan_rate = X_train.isna().mean().mean()
+print(f'Train NaN率: {train_nan_rate*100:.1f}%')
+print(f'Test NaN率:  {test_nan_rate*100:.1f}%')
+if test_nan_rate > train_nan_rate * 3:
+    print('⚠ テスト特徴量のNaN率が学習時の3倍以上 → Rolling/ラグ特徴量の構築を確認')
+
+# NaN率が高い特徴量を特定
+high_nan = X_test.isna().mean()
+high_nan = high_nan[high_nan > 0.05].sort_values(ascending=False)
+print('NaN率 > 5%の特徴量:', high_nan.to_dict())
+```
+
+```python
+# === V9b: カテゴリエンコーディング整合チェック ===
+# テストで独立にfactorize()すると学習時と異なるコードになる
+train_genres = set(train_df['genre_encoded'].unique())
+test_genres = set(test_df['genre_encoded'].unique())
+if not test_genres.issubset(train_genres):
+    print('⚠ テストに学習時に存在しないエンコーディングが含まれる')
+    print(f'  Train codes: {sorted(train_genres)}')
+    print(f'  Test codes: {sorted(test_genres)}')
+    print('  → 学習データからマッピングを構築して適用すること')
+```
+
+```python
+# === V9c: 予測値の分布チェック ===
+print(f'学習データ目的変数: mean={train_df["visitors"].mean():.1f}, median={train_df["visitors"].median():.1f}')
+print(f'テスト予測値:      mean={test_pred.mean():.1f}, median={np.median(test_pred):.1f}')
+# 大幅にズレていれば特徴量構築のバグか、モデルの学習データ不足を疑う
+```
+
+**Recruit Competition での実例:**
+- v2: テストNaN率 14.5%（学習時 ~2%）→ lag特徴量がテスト期間でNaN汚染
+- 原因: テスト日のvisitorsがNaN → shift/rollingがNaN連鎖
+- 修正: 最終学習日の値を「凍結」して全テスト日に適用 → NaN率 1.2%に改善
+- 効果: Private LB 0.636 → 0.527
+
+### V10: Feature Importance Imbalance Detection
+
+```python
+# 特徴量重要度の偏りを検出
+importance = model.feature_importance(importance_type='gain')
+importance_sorted = np.sort(importance)[::-1]
+cumsum = np.cumsum(importance_sorted) / importance_sorted.sum()
+
+# Top-N特徴量の集中度
+top2_share = cumsum[1]  # Top2の累積シェア
+print(f'Top 2 特徴量のシェア: {top2_share*100:.1f}%')
+print(f'Top 5 特徴量のシェア: {cumsum[4]*100:.1f}%')
+
+if top2_share > 0.7:
+    print('⚠ 重要度が極端に偏っている')
+    print('  → モデルが実質的に2特徴量のルックアップになっている')
+    print('  → チューニングよりも新特徴量の追加が有効')
+    print('  → 偏りを減らすには: 予約データ、天気データ等の外部情報が必要')
+```
+
+**解釈ガイド:**
+
+| Top2シェア | 状態 | 推奨アクション |
+|-----------|------|--------------|
+| < 30% | 健全 | チューニングで微調整可能 |
+| 30-50% | やや偏り | 新特徴量の追加を検討 |
+| 50-70% | 偏り大 | 新データソースの活用を優先 |
+| > 70% | 極端 | **チューニング不要、特徴量開発に全力** |
+
+### V11: 過学習診断（Train/Valid比率）
+
+```python
+# 学習データと検証データのスコア比較で過学習を定量化
+train_pred = np.expm1(model.predict(X_train))
+score_train = rmsle(train_df['visitors'], train_pred)
+
+valid_pred = np.expm1(model.predict(X_valid))
+score_valid = rmsle(valid_df['visitors'], valid_pred)
+
+overfit_ratio = score_train / score_valid
+print(f'学習 RMSLE: {score_train:.5f}')
+print(f'検証 RMSLE: {score_valid:.5f}')
+print(f'過学習度合い: {overfit_ratio:.3f} (1.0に近いほど良い)')
+```
+
+**解釈ガイド:**
+
+| Train/Valid比率 | 状態 | 対策 |
+|----------------|------|------|
+| > 0.90 | 健全 | そのまま |
+| 0.80 - 0.90 | 軽度の過学習 | 正則化を検討 |
+| 0.70 - 0.80 | **中度の過学習** | max_depth制限、NaN戦略変更、min_samples引き上げ |
+| < 0.70 | 重度の過学習 | モデル構造の根本的見直し |
+
+**Recruit Competition での実例:**
+- RandomForest + `fillna(-999)`: train 0.369 / valid 0.512 → **比率 0.721（中度の過学習）**
+- 原因: -999による不自然な分割が学習データの欠損パターンを丸暗記
+- 対策: 中央値埋め + 欠損フラグ + max_depth上限20に制限
+
+### V12: NaN埋め戦略の過学習への影響チェック
+
+```python
+# 異なるNaN埋め戦略で過学習度合いを比較
+strategies = {
+    'fillna(-999)': lambda X: X.fillna(-999),
+    'median+flag': lambda X: impute_with_median_and_flags(X, ...),
+    'fillna(0)': lambda X: X.fillna(0),
+}
+for name, imputer in strategies.items():
+    X_tr, X_va = imputer(X_train.copy()), imputer(X_valid.copy())
+    model.fit(X_tr, y_train)
+    train_score = rmsle(y_train_raw, np.expm1(model.predict(X_tr)))
+    valid_score = rmsle(y_valid_raw, np.expm1(model.predict(X_va)))
+    ratio = train_score / valid_score
+    print(f'{name:15s}: train={train_score:.5f} valid={valid_score:.5f} ratio={ratio:.3f}')
+```
+
+**NaN埋め戦略の比較:**
+
+| 戦略 | 過学習リスク | 情報保持 | 推奨モデル |
+|------|------------|---------|-----------|
+| `fillna(-999)` | **高い** — 木が-999境界で不自然な分割 | なし | 非推奨 |
+| `fillna(0)` | 中 — 0が意味を持つ特徴量で混乱 | なし | カウント系のみ |
+| 中央値埋め | 低 — 分布に馴染む | なし | NaN比率が低い場合 |
+| **中央値埋め + フラグ** | **低い** | **あり** | **RF/SVMなどNaN非対応モデル全般** |
+| NaN（デフォルト） | 最低 | 完全 | LightGBM/XGBoost/CatBoost |
+
 ---
 
 ## Phase 12: Model Training Pipeline (03-x Notebooks)
@@ -512,11 +692,44 @@ elif best_nan_strategy == '中央値埋め':
     X_train = train_df[all_features].fillna(medians)
     X_valid = valid_df[all_features].fillna(medians)
 
-# ★ RandomForestはNaN非対応 → best_nan_strategyが'NaN(デフォルト)'でも-999埋めが必要
+# ★ RandomForestはNaN非対応 → 中央値埋め + 欠損フラグが推奨
+# fillna(-999) は木が-999で不自然な分割を学習し、過学習の原因になる（Lesson 16参照）
 if model_type == 'RandomForest':
-    X_train = X_train.fillna(-999)
-    X_valid = X_valid.fillna(-999)
+    X_train, X_valid, nan_flag_cols = impute_with_median_and_flags(X_train, X_valid, all_features)
+    all_features_with_flags = all_features + nan_flag_cols
 ```
+
+#### RF向け中央値埋め + 欠損フラグ関数
+
+```python
+def impute_with_median_and_flags(X_train, X_valid, features):
+    """NaN非対応モデル用: 中央値埋め + 欠損フラグ列の追加
+
+    fillna(-999) の問題:
+    - 木が-999の境界で不自然な分割を学習
+    - 学習データの欠損パターンを丸暗記 → 過学習
+
+    中央値埋め + フラグの利点:
+    - 中央値は特徴量の分布に馴染む → 不自然な分割が発生しない
+    - 欠損フラグで「欠損だった」情報を保持 → 情報損失なし
+    - 検証データにも学習データの中央値を使用 → リーク防止
+    """
+    X_train = X_train.copy()
+    X_valid = X_valid.copy()
+    medians = X_train[features].median()
+    nan_flag_cols = []
+    for col in features:
+        if X_train[col].isna().any() or X_valid[col].isna().any():
+            flag_col = f'is_nan_{col}'
+            X_train[flag_col] = X_train[col].isna().astype(int)
+            X_valid[flag_col] = X_valid[col].isna().astype(int)
+            nan_flag_cols.append(flag_col)
+        X_train[col] = X_train[col].fillna(medians[col])
+        X_valid[col] = X_valid[col].fillna(medians[col])
+    return X_train, X_valid, nan_flag_cols
+```
+
+**重要**: CV内の各foldでも`medians`はfold学習データから計算すること（検証データからの情報リーク防止）。
 
 ### 12.3: CV戦略の統一
 
@@ -667,6 +880,96 @@ print(f'Private LB: {private_lb:.5f} (乖離: {private_gap:.5f} = {private_sigma
 - **What worked**: ジャンル交互作用特徴量、営業日ベースRolling、有意差判定（±1σ）による設定選択
 - **What didn't work**: 単一train/valid分割での設定決定（過適合リスク）
 - **Key takeaway**: CV戦略は最初（01 EDA）に設計し、全ノートブックで一貫して使用する
+
+### Recruit Competition — 追加Lessons (2026-03-09, v3修正後)
+
+- **Lesson 5: テスト予測パイプラインのNaN汚染は最も危険なバグ**
+  - Rolling/ラグ特徴量はテスト期間で急速にNaN化する（テスト2日目でlag_1が100% NaN）
+  - 対策: 最終学習日の特徴量を「凍結」して全テスト日に適用する
+  - NaN率14.5% → 1.2%に改善、Private LB 0.636 → 0.527
+
+- **Lesson 6: 最終モデルは全データ（train+valid）で再学習する**
+  - validation期間を捨てて提出すると、直近の情報が失われる
+  - iterations数はearly_stoppingで決まった値を使う（再度early_stoppingしない）
+
+- **Lesson 7: カテゴリエンコーディングは学習データのマッピングを使う**
+  - `factorize()[0]`をテストで独立実行すると、同じカテゴリに異なるコードが割り当てられる
+  - 対策: `genre_map = train_df.groupby('genre')['genre_encoded'].first().to_dict()` → `test_df.map(genre_map)`
+
+- **Lesson 8: チューニングの費用対効果を事前に判断する**
+  - 改善幅がCV stdの5%未満なら統計的に有意でない → チューニング不要
+  - 特徴量重要度のTop2が80%超 → モデルがルックアップテーブル化、チューニングより特徴量追加
+  - Recruit実例: Optuna 50trials(40分) → CV改善0.00041, Single分割で悪化
+
+- **Lesson 9: 予測値のクリップは0ではなく1にする**
+  - 飲食店の来客数は0人（休業日）か1人以上。テスト期間に休業日は含まれない想定
+  - `np.clip(pred, 1, None)` がより適切
+
+- **Lesson 10: Fold別スコアの異常値は特殊期間の信号**
+  - Fold 4（年末: 0.542）が他（0.493-0.520）より+0.05悪い → 年末年始の急峻な変化を捉えきれていない
+  - 対策候補: 12/25〜1/3専用フラグ、年末のstore×月統計量の追加
+
+### Recruit Competition — 追加Lessons (2026-03-09, 総合評価フィードバック後)
+
+- **Lesson 11: 特徴量がstore_dow_medianに包含されて無効になるパターン**
+  - ジャンル交互作用特徴量（genre_holiday_ratio, genre_reserve_coverage等5個）はCV改善 -0.001
+  - 原因: store_dow_medianが既にジャンル固有の曜日パターンを内包している
+  - **判断基準**: 段階的検証で改善幅 < 0.002 かつ追加特徴量 > 3個 → コストに見合わない、削除を検討
+  - **教訓**: EDAで定性的に有効でも、上位特徴量が既に情報を包含していれば数値に現れない
+
+- **Lesson 12: 少データFoldで曜日別Rollingが有害になる**
+  - dow_rolling_mean_4w（同曜日の過去4週平均）→ CV悪化 +0.003
+  - 原因: Fold 1では同曜日サンプルが4件しかなく、Rolling統計量の信頼性が極めて低い
+  - **判断基準**: 特徴量の有効性はCV全体で評価。特定Foldで有害 → 除外が安全
+  - **ただし**: EWMスパン28はわずかにCV改善(0.54510)しており、追加の余地があった
+
+- **Lesson 13: 残差の曜日パターンから定休日直後の補正不足が見える**
+  - 大きな誤差（|残差|>1.0）の曜日分布: 火17.6%, 日16.6%, 月13.6%
+  - 原因: 月曜定休→火曜が最初の営業日で、来客数が通常と異なるパターン
+  - `days_since_long_closure`や`closed_streak`では粒度が粗い
+  - **対策候補**: `is_first_day_after_closure`フラグ、`days_since_last_open`の追加
+
+- **Lesson 14: 段階的特徴量検証の改善幅の相場観**
+
+  | ステップ | CV改善幅 | 評価 |
+  |---------|---------|------|
+  | +店舗統計量 | -0.236 | 圧倒的。ほぼ必須 |
+  | +Rolling/ラグ | -0.017 | 実質的効果あり |
+  | +休業/祝日 | -0.002 | 微小だが安定 |
+  | +ジャンル交互作用 | -0.001 | コストに見合わない |
+
+  店舗統計量が最大効果（-0.236）で、以降は急速に逓減する。**新データソース（HPG予約等）の追加が次の大きなジャンプに必要**
+
+- **Lesson 15: HPG予約データ200万件は最大の未開拓リソース**
+  - リンク可能店舗: 150/829（18%のみ）→ 直接活用は限定的
+  - **エリア内HPG予約集計**（その日・そのエリアで何人が予約しているか）は全店舗に適用可能
+  - 1位の解法もHPGエリア集計を活用。期待改善幅: +0.005〜0.010
+
+### Recruit Competition — 追加Lessons (2026-03-11, RF過学習改善)
+
+- **Lesson 16: `fillna(-999)` はRandomForestで過学習の主因になる**
+  - RF + fillna(-999): train RMSLE 0.369, valid RMSLE 0.512 → 比率 **0.721**
+  - 原因: 木が-999という極端な値で分割を作り、学習データの「どこがNaNだったか」を丸暗記する
+  - -999の分割は学習データの欠損パターンに完全フィットするが、検証データの欠損パターンとは異なる → 汎化しない
+  - **対策**: 中央値埋め + 欠損フラグ（`is_nan_XXX`）で情報を保持しつつ不自然な分割を回避
+
+- **Lesson 17: NaN非対応モデルでは「中央値埋め + 欠損フラグ」が標準手法**
+  - 中央値は特徴量分布の中心にあるため、木の分割に不自然な影響を与えない
+  - 欠損フラグ（binary）で「元々NaNだった」情報を明示的に保持 → 情報損失なし
+  - **必ず学習データの中央値を検証データにも適用する**（検証データの中央値を使うとリーク）
+  - CV内の各foldでも同様に、fold学習データの中央値をfold検証データに適用する
+
+- **Lesson 18: RF過学習の対策はNaN戦略 → max_depth制限 → min_samples引き上げの順**
+  - 最も効果が大きいのはNaN埋め戦略の変更（-999 → 中央値+フラグ）
+  - 次にmax_depthの制限（30 → 20）で木の深さを抑制
+  - min_samples_split / min_samples_leaf の引き上げは微調整
+  - **Optuna探索空間でもmax_depthの上限を20に制限する**（深い木は過学習を助長）
+
+- **Lesson 19: 重いモデル（RF 500本）はDatabricks Community Editionで実行可能**
+  - ローカルPC（16GB RAM）ではRF 500本 × 5-fold CV × 30 Optuna trials が非現実的
+  - Databricks CE: 無料、15GB RAM、Spark未使用でもPython実行環境として有用
+  - pkl/csvをDBFSにアップロード → ノートブック実行 → 結果pklをダウンロード
+  - 注意: セッションタイムアウト（2時間無操作）があるため、長時間ジョブは分割実行
 
 ---
 
